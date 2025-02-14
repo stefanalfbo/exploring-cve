@@ -1,5 +1,7 @@
 from airflow.decorators import dag, task
 from datetime import datetime
+import os
+import requests
 
 
 @dag(
@@ -11,38 +13,39 @@ from datetime import datetime
 def ProcessCVE():
     @task()
     def extract():
-        # Print message, return a response
-        print("Extracting data CVE API")
-        return {
-            "date": "2023-01-01",
-            "location": "NYC",
-            "weather": {
-                "temp": 33,
-                "conditions": "Light snow and wind"
-            }
-        }
+        year = 2024
+        folder = f"data/{year}"
+        os.makedirs(folder, exist_ok=True)
+        cve_files = []
+
+        for i in range(1, 10000):
+            file_name = f"CVE-{year}-{i:04d}.json"
+            url = f"https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/{year}/0xxx/{file_name}"
+            response = requests.get(url)
+            if response.status_code == 404:
+                break
+            if response.status_code == 200:
+                file = os.path.join(folder, file_name)
+                with open(file, "w") as f:
+                    f.write(response.text)
+                cve_files.append(file)
+
+        return cve_files
 
     @task()
-    def transform(raw_data):
+    def transform(files):
         # Transform response to a list
-        transformed_data = [
-            [
-                raw_data.get("date"),
-                raw_data.get("location"),
-                raw_data.get("weather").get("temp"),
-                raw_data.get("weather").get("conditions")
-            ]
-        ]
-        return transformed_data
+        return files
 
     @task()
-    def load(transformed_data):
-        print(transformed_data)
+    def load(files):
+        for file in files:
+            print(f"Loading file: {file}")
 
     # Set dependencies using function calls
-    raw_dataset = extract()
-    transformed_dataset = transform(raw_dataset)
-    load(transformed_dataset)
+    files = extract()
+    transformed_files = transform(files)
+    load(transformed_files)
 
 
 # Allow the DAG to be run
